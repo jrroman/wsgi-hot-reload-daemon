@@ -192,8 +192,6 @@ int monitor(int inotify_fd, const char *root_dir, char *wsgi_file) {
     return 0;
 }
 
-
-
 int main(int argc, char **argv) {
     // check that directory and wsgi location were entered
     if (argc < 3) {
