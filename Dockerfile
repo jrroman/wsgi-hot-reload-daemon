@@ -8,4 +8,4 @@ RUN apt-get update && apt-get install -y \
     gcc \
     make
 
-ENTRYPOINT ["./build.sh"]
+CMD ["./build.sh"]

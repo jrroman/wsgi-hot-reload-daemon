@@ -22,6 +22,8 @@
 #define BUF_LEN (10 * (sizeof(struct inotify_event) + NAME_MAX + 1))
 #define MAX_WATCHERS 524288 // max number of watchers linux allows
 
+//TODO: Add logging since we are now running as a daemon
+
 // array of watcher id's
 int watchers[MAX_WATCHERS];
 
@@ -111,30 +113,29 @@ int create_watchers(int fd, const char *root_dir, char *wsgi_file) {
 
     iter = 1;
     while ((dn = readdir(dirp)) != NULL) {
-        if (dn->d_type & DT_DIR ) {
-            if (strcmp(dn->d_name, ".") != 0 && 
-                strcmp(dn->d_name, "..") != 0 &&
-                strcmp(dn->d_name, "static") != 0) {
-                int path_len;
-                char path[PATH_MAX]; // specified in limits.h
+        if (dn->d_type & DT_DIR &&
+            strcmp(dn->d_name, ".") != 0 && 
+            strcmp(dn->d_name, "..") != 0 &&
+            strcmp(dn->d_name, "static") != 0) {
+            int path_len;
+            char path[PATH_MAX]; // specified in limits.h
 
-                path_len = snprintf(path, PATH_MAX, "%s/%s", 
-                                    root_dir, dn->d_name);
+            path_len = snprintf(path, PATH_MAX, "%s/%s", 
+                                root_dir, dn->d_name);
 
-                if (path_len >= PATH_MAX) {
-                    printf("Path length is too long.\n");
-                    return -1;
-                }
-
-                wd = add_watcher(fd, path);
-                if (wd == -1) {
-                    return -1;
-                }
-                printf("watching %s using wd %d\n", path, wd);
-                watchers[iter++] = wd;
-
-                create_watchers(fd, path, wsgi_file);
+            if (path_len >= PATH_MAX) {
+                printf("Path length is too long.\n");
+                return -1;
             }
+
+            wd = add_watcher(fd, path);
+            if (wd == -1) {
+                return -1;
+            }
+            printf("watching %s using wd %d\n", path, wd);
+            watchers[iter++] = wd;
+
+            create_watchers(fd, path, wsgi_file);
         }
     }
 
