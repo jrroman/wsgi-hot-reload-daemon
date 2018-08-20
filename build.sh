@@ -7,9 +7,9 @@ readonly EXT=".c"
 
 # compile the route solver to a shared obj for erlang
 make build
-status=$?
-if [ $status -ne 0 ]; then
+RETVAL=$?
+if [ "$RETVAL" -ne 0 ]; then
     echo "error compiling ${PROG_NAME}"
-    exit $status
+    exit "$RETVAL"
 fi
-exit $status
+exit "$RETVAL"
