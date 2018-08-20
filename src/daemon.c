@@ -9,11 +9,14 @@
  * realtime. 
  */
 #include <dirent.h>
+#include <errno.h>
 #include <libgen.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 #include <sys/inotify.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -24,10 +27,11 @@
 
 //TODO: Add logging since we are now running as a daemon
 
-// array of watcher id's
-int watchers[MAX_WATCHERS];
+static int running = 0;
+int watchers[MAX_WATCHERS]; // array of watcher id's
 
-static void displayInotifyEvent(struct inotify_event *i) {
+static void displayInotifyEvent(struct inotify_event *i)
+{
 	printf("    wd =%2d; ", i->wd);
 	if (i->cookie > 0)
 		printf("cookie =%4d; ", i->cookie);
@@ -55,7 +59,8 @@ static void displayInotifyEvent(struct inotify_event *i) {
 		printf("        name = %s\n", i->name);
 }
 
-int add_watcher(int fd, const char *dir) {
+int add_watcher(int fd, const char *dir)
+{
     int wd = inotify_add_watch(fd, dir, IN_MODIFY | IN_ATTRIB);
     if (wd == -1) {
         printf("error watching %s with wd: %d\n", dir, wd);
@@ -65,7 +70,8 @@ int add_watcher(int fd, const char *dir) {
     return wd;
 }
 
-int remove_watcher(int fd, int wd) {
+int remove_watcher(int fd, int wd)
+{
     int status = inotify_rm_watch(fd, wd);
     if (status == -1) {
         printf("error removing watcher %d\n", wd);
@@ -75,7 +81,8 @@ int remove_watcher(int fd, int wd) {
     return 0;
 }
 
-int cleanup_watchers(int fd) {
+int cleanup_watchers(int fd)
+{
     int i = 0;
     for (;i < sizeof(watchers) / sizeof(int); i++) {
         if (remove_watcher(fd, watchers[i]) == -1) {
@@ -86,22 +93,8 @@ int cleanup_watchers(int fd) {
     return 0;
 }
 
-int touch_wsgi(int fd, char *wsgi_file) {
-    FILE *fp;
-
-    fp = fopen(wsgi_file, "w");
-    if (fp == NULL) {
-        printf("invalid file descriptor\n");
-        return -1;
-    }
-
-    fclose(fp);
-    printf("touched wsgi!\n");
-
-    return 0;
-}
-
-int create_watchers(int fd, const char *root_dir, char *wsgi_file) {
+int create_watchers(int fd, const char *root_dir, char *wsgi_file)
+{
     DIR *dirp;
     struct dirent *dn;
     int wd, iter;
@@ -144,8 +137,24 @@ int create_watchers(int fd, const char *root_dir, char *wsgi_file) {
     return 0;
 }
 
+int touch_wsgi(int fd, char *wsgi_file)
+{
+    FILE *fp;
 
-int monitor(int inotify_fd, const char *root_dir, char *wsgi_file) {
+    fp = fopen(wsgi_file, "w");
+    if (fp == NULL) {
+        printf("invalid file descriptor\n");
+        return -1;
+    }
+
+    fclose(fp);
+    printf("touched wsgi!\n");
+
+    return 0;
+}
+
+int monitor(int inotify_fd, const char *root_dir, char *wsgi_file)
+{
     char inotify_buf[BUF_LEN];
     ssize_t num_read;
     struct inotify_event *event;
@@ -161,7 +170,9 @@ int monitor(int inotify_fd, const char *root_dir, char *wsgi_file) {
     // look for all nested dirs and create watchers for them
     create_watchers(inotify_fd, root_dir, wsgi_file);
 
-    while (1) {
+    // signal handler affects this value
+    running = 1;
+    while (running == 1) {
         num_read = read(inotify_fd, inotify_buf, BUF_LEN);
         if (num_read == 0) {
             printf("read() from inotify returned 0\n");
@@ -174,7 +185,6 @@ int monitor(int inotify_fd, const char *root_dir, char *wsgi_file) {
         }
         printf("read %ld bytes from inotify\n", (long)num_read);
 
-
         char *tmp = inotify_buf;
         while (tmp < inotify_buf + num_read) {
             event = (struct inotify_event *)tmp;
@@ -184,7 +194,9 @@ int monitor(int inotify_fd, const char *root_dir, char *wsgi_file) {
                 continue;
             }
             displayInotifyEvent(event);
-            if (touch_wsgi(inotify_fd, wsgi_file) == -1) return -1;
+            if (touch_wsgi(inotify_fd, wsgi_file) == -1)
+                return -1;
+
             tmp += sizeof(struct inotify_event) + event->len;
         }
     }
@@ -192,15 +204,8 @@ int monitor(int inotify_fd, const char *root_dir, char *wsgi_file) {
     return 0;
 }
 
-int main(int argc, char **argv) {
-    // check that directory and wsgi location were entered
-    if (argc < 3) {
-        printf("enter watch root dir and wsgi location!\n");
-        exit(EXIT_FAILURE);
-    }
-
-    const char *root_dir = argv[1];
-    char *wsgi_file = argv[2];
+static void daemonize()
+{
     pid_t pid, sid;
 
     pid = fork();
@@ -214,8 +219,6 @@ int main(int argc, char **argv) {
         exit(EXIT_SUCCESS);
     }
 
-    // change file mode mask
-    umask(0);
     // set SID for new child proc
     sid = setsid();
     if (sid < 0) {
@@ -223,6 +226,9 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
     printf("child proc sid: %d\n", sid);
+    
+    // change file mode mask
+    umask(0);
 
     if ((chdir("/")) < 0) {
         printf("could change to root dir!\n");
@@ -231,13 +237,45 @@ int main(int argc, char **argv) {
 
     // close standard file descriptiors
     close(STDIN_FILENO);
-    close(STDOUT_FILENO);
+//    close(STDOUT_FILENO);
     close(STDERR_FILENO);
+}
 
-    int inotify_fd = inotify_init(); if (inotify_fd == -1) {
+void signal_handler(int sig)
+{
+    if (sig == SIGINT) {
+        // TODO implement pid file close and such
+        printf("shutting down...\n");
+        running = 0;
+        // reset signal handling
+        signal(SIGINT, SIG_DFL);
+    }
+}
+
+// TODO create help function for displaying usage
+
+int main(int argc, char **argv)
+{
+    // check that directory and wsgi location were entered
+    if (argc < 3) {
+        printf("enter watch root dir and wsgi location!\n");
+        exit(EXIT_FAILURE);
+    }
+    // TODO implement actual option handling using getopt
+    // for long options and such
+
+    const char *root_dir = argv[1];
+    char *wsgi_file = argv[2];
+
+    daemonize();
+
+    int inotify_fd = inotify_init();
+    if (inotify_fd == -1) {
         printf("error inotify init, root: %s\n", root_dir);
         exit(EXIT_FAILURE);
     }
+
+    signal(SIGINT, signal_handler);
 
     if (!monitor(inotify_fd, root_dir, wsgi_file)) {
         exit(EXIT_FAILURE);
