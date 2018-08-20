@@ -32,31 +32,31 @@ int watchers[MAX_WATCHERS]; // array of watcher id's
 
 static void displayInotifyEvent(struct inotify_event *i)
 {
-	printf("    wd =%2d; ", i->wd);
-	if (i->cookie > 0)
-		printf("cookie =%4d; ", i->cookie);
+    printf("    wd =%2d; ", i->wd);
+    if (i->cookie > 0)
+        printf("cookie =%4d; ", i->cookie);
 
-	printf("mask = ");
-	if (i->mask & IN_ACCESS)        printf("IN_ACCESS ");
-	if (i->mask & IN_ATTRIB)        printf("IN_ATTRIB ");
-	if (i->mask & IN_CLOSE_NOWRITE) printf("IN_CLOSE_NOWRITE ");
-	if (i->mask & IN_CLOSE_WRITE)   printf("IN_CLOSE_WRITE ");
-	if (i->mask & IN_CREATE)        printf("IN_CREATE ");
-	if (i->mask & IN_DELETE)        printf("IN_DELETE ");
-	if (i->mask & IN_DELETE_SELF)   printf("IN_DELETE_SELF ");
-	if (i->mask & IN_IGNORED)       printf("IN_IGNORED ");
-	if (i->mask & IN_ISDIR)         printf("IN_ISDIR ");
-	if (i->mask & IN_MODIFY)        printf("IN_MODIFY ");
-	if (i->mask & IN_MOVE_SELF)     printf("IN_MOVE_SELF ");
-	if (i->mask & IN_MOVED_FROM)    printf("IN_MOVED_FROM ");
-	if (i->mask & IN_MOVED_TO)      printf("IN_MOVED_TO ");
-	if (i->mask & IN_OPEN)          printf("IN_OPEN ");
-	if (i->mask & IN_Q_OVERFLOW)    printf("IN_Q_OVERFLOW ");
-	if (i->mask & IN_UNMOUNT)       printf("IN_UNMOUNT ");
-	printf("\n");
+    printf("mask = ");
+    if (i->mask & IN_ACCESS)        printf("IN_ACCESS ");
+    if (i->mask & IN_ATTRIB)        printf("IN_ATTRIB ");
+    if (i->mask & IN_CLOSE_NOWRITE) printf("IN_CLOSE_NOWRITE ");
+    if (i->mask & IN_CLOSE_WRITE)   printf("IN_CLOSE_WRITE ");
+    if (i->mask & IN_CREATE)        printf("IN_CREATE ");
+    if (i->mask & IN_DELETE)        printf("IN_DELETE ");
+    if (i->mask & IN_DELETE_SELF)   printf("IN_DELETE_SELF ");
+    if (i->mask & IN_IGNORED)       printf("IN_IGNORED ");
+    if (i->mask & IN_ISDIR)         printf("IN_ISDIR ");
+    if (i->mask & IN_MODIFY)        printf("IN_MODIFY ");
+    if (i->mask & IN_MOVE_SELF)     printf("IN_MOVE_SELF ");
+    if (i->mask & IN_MOVED_FROM)    printf("IN_MOVED_FROM ");
+    if (i->mask & IN_MOVED_TO)      printf("IN_MOVED_TO ");
+    if (i->mask & IN_OPEN)          printf("IN_OPEN ");
+    if (i->mask & IN_Q_OVERFLOW)    printf("IN_Q_OVERFLOW ");
+    if (i->mask & IN_UNMOUNT)       printf("IN_UNMOUNT ");
+    printf("\n");
 
-	if (i->len > 0)
-		printf("        name = %s\n", i->name);
+    if (i->len > 0)
+        printf("        name = %s\n", i->name);
 }
 
 int add_watcher(int fd, const char *dir)
@@ -85,9 +85,8 @@ int cleanup_watchers(int fd)
 {
     int i = 0;
     for (;i < sizeof(watchers) / sizeof(int); i++) {
-        if (remove_watcher(fd, watchers[i]) == -1) {
+        if (remove_watcher(fd, watchers[i]) == -1)
             return -1;
-        }
     }
 
     return 0;
@@ -107,14 +106,14 @@ int create_watchers(int fd, const char *root_dir, char *wsgi_file)
     iter = 1;
     while ((dn = readdir(dirp)) != NULL) {
         if (dn->d_type & DT_DIR &&
-            strcmp(dn->d_name, ".") != 0 && 
-            strcmp(dn->d_name, "..") != 0 &&
-            strcmp(dn->d_name, "static") != 0) {
+                strcmp(dn->d_name, ".") != 0 && 
+                strcmp(dn->d_name, "..") != 0 &&
+                strcmp(dn->d_name, "static") != 0) {
             int path_len;
             char path[PATH_MAX]; // specified in limits.h
 
             path_len = snprintf(path, PATH_MAX, "%s/%s", 
-                                root_dir, dn->d_name);
+                    root_dir, dn->d_name);
 
             if (path_len >= PATH_MAX) {
                 printf("Path length is too long.\n");
@@ -122,9 +121,9 @@ int create_watchers(int fd, const char *root_dir, char *wsgi_file)
             }
 
             wd = add_watcher(fd, path);
-            if (wd == -1) {
+            if (wd == -1)
                 return -1;
-            }
+
             printf("watching %s using wd %d\n", path, wd);
             watchers[iter++] = wd;
 
@@ -133,7 +132,7 @@ int create_watchers(int fd, const char *root_dir, char *wsgi_file)
     }
 
     closedir(dirp);
-    
+
     return 0;
 }
 
@@ -161,9 +160,9 @@ int monitor(int inotify_fd, const char *root_dir, char *wsgi_file)
     char *wsgi_file_name = basename(wsgi_file);
 
     int wd = add_watcher(inotify_fd, root_dir);
-    if (wd == -1) {
+    if (wd == -1)
         return -1;
-    }
+
     watchers[0] = wd;
     printf("watching %s using wd %d\n", root_dir, wd);
 
@@ -204,29 +203,46 @@ int monitor(int inotify_fd, const char *root_dir, char *wsgi_file)
     return 0;
 }
 
+// make prog run as a daemon process
 static void daemonize()
 {
-    pid_t pid, sid;
+    pid_t pid = 0;
 
+    // fork off of parent proc
     pid = fork();
+
+    // error occured
     if (pid < 0) {
         printf("could not fork process!\n");
         exit(EXIT_FAILURE);
     }
 
     // if we got a good pid, exit the parent proc
-    if (pid > 0) {
+    if (pid > 0)
         exit(EXIT_SUCCESS);
-    }
 
     // set SID for new child proc
-    sid = setsid();
-    if (sid < 0) {
+    if (setsid() < 0) {
         printf("could not set sid on child process!\n");
         exit(EXIT_FAILURE);
     }
-    printf("child proc sid: %d\n", sid);
     
+    // ignore signal sent from child to parent
+    signal(SIGCHLD, SIG_IGN);
+
+    // fork off for the second time
+    pid = fork();
+
+    // error occured
+    if (pid < 0) {
+        printf("could not fork process #2!\n");
+        exit(EXIT_FAILURE);
+    }
+       
+    // success let parent terminate
+    if (pid > 0)
+        exit(EXIT_SUCCESS);
+
     // change file mode mask
     umask(0);
 
@@ -237,10 +253,11 @@ static void daemonize()
 
     // close standard file descriptiors
     close(STDIN_FILENO);
-//    close(STDOUT_FILENO);
+    //    close(STDOUT_FILENO);
     close(STDERR_FILENO);
 }
 
+// handle caught signal
 void signal_handler(int sig)
 {
     if (sig == SIGINT) {
@@ -254,6 +271,7 @@ void signal_handler(int sig)
 
 // TODO create help function for displaying usage
 
+// Main Logic
 int main(int argc, char **argv)
 {
     // check that directory and wsgi location were entered
@@ -275,8 +293,10 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+    // catch SIGINT and handle it
     signal(SIGINT, signal_handler);
 
+    // the main loop of the program, runs until signal caught
     if (!monitor(inotify_fd, root_dir, wsgi_file)) {
         exit(EXIT_FAILURE);
     }
