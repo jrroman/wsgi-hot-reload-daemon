@@ -53,6 +53,7 @@ stop() {
                     --oknodo \
                     --chuid "$PROG_USER" \
                     --pidfile "$PID_FILE" \
+                    --signal INT \
                     --retry 5
   RETVAL=$?
   [ "$RETVAL" -eq 0 ] && rm -f "$PID_FILE"
