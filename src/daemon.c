@@ -44,8 +44,8 @@ static void displayInotifyEvent(struct inotify_event *ev)
         syslog(LOG_INFO, "cookie =%4d; ", ev->cookie);
 
     syslog(LOG_INFO, "mask = ");
-    if (ev->mask & IN_ATTRIB)        syslog(LOG_INFO, "IN_ATTRIB ");
-    if (ev->mask & IN_MODIFY)        syslog(LOG_INFO, "IN_MODIFY ");
+    if (ev->mask & IN_ATTRIB) syslog(LOG_INFO, "IN_ATTRIB ");
+    if (ev->mask & IN_MODIFY) syslog(LOG_INFO, "IN_MODIFY ");
     syslog(LOG_INFO, "\n");
 
     if (ev->len > 0)
@@ -58,7 +58,6 @@ int add_watcher(int fd, const char *dir)
     int wd = inotify_add_watch(fd, dir, IN_MODIFY | IN_ATTRIB);
     if (wd == -1) {
         syslog(LOG_INFO, "error watching %s with wd: %d\n", dir, wd);
-        
         return EXIT_FAILURE;
     }
 
@@ -70,7 +69,6 @@ int remove_watcher(int fd, int wd)
     int status = inotify_rm_watch(fd, wd);
     if (status == -1) {
         syslog(LOG_INFO, "error removing watcher %d\n", wd);
-        
         return EXIT_FAILURE;
     }
 
@@ -96,7 +94,6 @@ int create_watchers(int fd, const char *root_dir, char *wsgi_file)
 
     if ((dirp = opendir(root_dir)) == NULL) {
         syslog(LOG_ERR, "could not open directory %s\n", root_dir);
-        
         return EXIT_FAILURE;
     }
 
@@ -114,7 +111,6 @@ int create_watchers(int fd, const char *root_dir, char *wsgi_file)
 
             if (path_len >= PATH_MAX) {
                 syslog(LOG_ERR, "Path length is too long.\n");
-                
                 return EXIT_FAILURE;
             }
 
@@ -142,7 +138,6 @@ int touch_wsgi(int fd, char *wsgi_file)
     fp = fopen(wsgi_file, "w");
     if (fp == NULL) {
         syslog(LOG_ERR, "invalid file descriptor\n");
-        
         return EXIT_FAILURE;
     }
 
