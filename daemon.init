@@ -12,8 +12,10 @@
 
 NAME="daemon"
 PID_FILE="/var/run/$NAME.pid"
+WATCH_DIR="/daemon/test"
+WSGI_FILE="$WATCH_DIR/config/wsgi.py"
 APPBIN="/usr/bin/$NAME"
-APPARGS="-w /daemon/test -f /daemon/test/config/wsgi.py -p $PID_FILE --daemon"
+APPARGS="-w $WATCH_DIR -f $WSGI_FILE -p $PID_FILE --daemon"
 PROG_USER=root
 
 # Include functions 
