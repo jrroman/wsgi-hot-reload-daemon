@@ -12,7 +12,6 @@
 
 NAME="daemon"
 PID_FILE="/var/run/$NAME.pid"
-LOCK_FILE="/var/lock/subsys/$NAME"
 APPBIN="/usr/bin/$NAME"
 APPARGS="-w /daemon/test -f /daemon/test/config/wsgi.py -p $PID_FILE --daemon"
 PROG_USER=root
@@ -51,9 +50,18 @@ stop() {
                     --chuid "$PROG_USER" \
                     --pidfile "$PID_FILE" \
                     --retry 5
-
   RETVAL=$?
+  [ "$RETVAL" -eq 0 ] && rm -f "$PID_FILE"
   return "$RETVAL"
+}
+
+status() {
+  if [ -e "$PID_FILE" ]; then
+    echo "wsgi hot reload daemon running."
+  else
+    echo "wsgi hot reload daemon not running."
+  fi
+  exit 0
 }
 
 case "$1" in
@@ -68,7 +76,7 @@ case "$1" in
     start
     ;;
   status)
-    status
+    status 
     ;;
   *)
     echo "Usage: $NAME {start|stop|restart|status}" >&2
