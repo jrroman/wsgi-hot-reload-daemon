@@ -31,7 +31,7 @@
 
 static int running = 0;
 static int watchers[MAX_WATCHERS]; // array of watcher id's
-static char *app_name = NULL;
+static char *prog_name = NULL;
 static char *root_dir = NULL;
 static char *wsgi_file = NULL;
 static char *pid_file_name = NULL;
@@ -307,7 +307,7 @@ void signal_handler(int sig)
 // TODO create help function for displaying usage
 void print_usage(void)
 {
-    printf("\n Usage: %s [OPTIONS]\n\n", app_name);
+    printf("\n Usage: %s [OPTIONS]\n\n", prog_name);
     printf("    Options:\n");
     printf("   -h --help                   Print this help\n");
     printf("   -w --watch_dir  filename   Test configuration file\n");
@@ -336,7 +336,7 @@ int main(int argc, char **argv)
     int opt_val, opt_idx = 0;
     int start_as_daemon = 0;
 
-    app_name = argv[0];
+    prog_name = argv[0];
 
     while ((opt_val = getopt_long(argc, argv, "w:f:l:p:dh", long_options,
             &opt_idx)) != -1) {
@@ -368,7 +368,7 @@ int main(int argc, char **argv)
 
 
     openlog(argv[0], LOG_PID|LOG_CONS, LOG_DAEMON);
-    syslog(LOG_INFO, "started: %s", app_name);
+    syslog(LOG_INFO, "started: %s", prog_name);
 
     // catch SIGINT and handle it
     signal(SIGINT, signal_handler);
@@ -383,7 +383,7 @@ int main(int argc, char **argv)
     if (!monitor(inotify_fd, root_dir, wsgi_file))
         exit(EXIT_FAILURE);
 
-    syslog(LOG_INFO, "stopped: %s", app_name);
+    syslog(LOG_INFO, "stopped: %s", prog_name);
     closelog();
 
     cleanup_watchers(inotify_fd);
