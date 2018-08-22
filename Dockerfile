@@ -6,6 +6,10 @@ COPY . .
 RUN apt-get update && apt-get install -y \
     build-essential \
     gcc \
-    make
+    make \
+    && cp daemon.init /etc/init.d/daemon \
+    && chmod +x /etc/init.d/daemon \
+    && update-rc.d daemon defaults \
+    && ./build.sh && mv daemon /usr/bin
 
-CMD ["./build.sh"]
+CMD ["service daemon start"]
