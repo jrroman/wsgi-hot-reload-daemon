@@ -37,33 +37,19 @@ static char *wsgi_file = NULL;
 static char *pid_file_name = NULL;
 static int pid_fd = -1;
 
-static void displayInotifyEvent(struct inotify_event *i)
+static void displayInotifyEvent(struct inotify_event *ev)
 {
-    syslog(LOG_INFO, "    wd =%2d; ", i->wd);
-    if (i->cookie > 0)
-        syslog(LOG_INFO, "cookie =%4d; ", i->cookie);
+    syslog(LOG_INFO, "wd =%2d; ", ev->wd);
+    if (ev->cookie > 0)
+        syslog(LOG_INFO, "cookie =%4d; ", ev->cookie);
 
     syslog(LOG_INFO, "mask = ");
-    if (i->mask & IN_ACCESS)        syslog(LOG_INFO, "IN_ACCESS ");
-    if (i->mask & IN_ATTRIB)        syslog(LOG_INFO, "IN_ATTRIB ");
-    if (i->mask & IN_CLOSE_NOWRITE) syslog(LOG_INFO, "IN_CLOSE_NOWRITE ");
-    if (i->mask & IN_CLOSE_WRITE)   syslog(LOG_INFO, "IN_CLOSE_WRITE ");
-    if (i->mask & IN_CREATE)        syslog(LOG_INFO, "IN_CREATE ");
-    if (i->mask & IN_DELETE)        syslog(LOG_INFO, "IN_DELETE ");
-    if (i->mask & IN_DELETE_SELF)   syslog(LOG_INFO, "IN_DELETE_SELF ");
-    if (i->mask & IN_IGNORED)       syslog(LOG_INFO, "IN_IGNORED ");
-    if (i->mask & IN_ISDIR)         syslog(LOG_INFO, "IN_ISDIR ");
-    if (i->mask & IN_MODIFY)        syslog(LOG_INFO, "IN_MODIFY ");
-    if (i->mask & IN_MOVE_SELF)     syslog(LOG_INFO, "IN_MOVE_SELF ");
-    if (i->mask & IN_MOVED_FROM)    syslog(LOG_INFO, "IN_MOVED_FROM ");
-    if (i->mask & IN_MOVED_TO)      syslog(LOG_INFO, "IN_MOVED_TO ");
-    if (i->mask & IN_OPEN)          syslog(LOG_INFO, "IN_OPEN ");
-    if (i->mask & IN_Q_OVERFLOW)    syslog(LOG_INFO, "IN_Q_OVERFLOW ");
-    if (i->mask & IN_UNMOUNT)       syslog(LOG_INFO, "IN_UNMOUNT ");
+    if (ev->mask & IN_ATTRIB)        syslog(LOG_INFO, "IN_ATTRIB ");
+    if (ev->mask & IN_MODIFY)        syslog(LOG_INFO, "IN_MODIFY ");
     syslog(LOG_INFO, "\n");
 
-    if (i->len > 0)
-        syslog(LOG_INFO, "        name = %s\n", i->name);
+    if (ev->len > 0)
+        syslog(LOG_INFO, "name = %s\n", ev->name);
     
 }
 

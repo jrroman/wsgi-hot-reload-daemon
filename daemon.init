@@ -22,11 +22,15 @@ PROG_USER=root
 set -e
 . /lib/lsb/init-functions
 
-start() {
-  if [ -f "$PID_FILE" ]; then
-    echo "service already started"
+check_pid() {
+  if [ -e "$1" ]; then
+    echo "$2"
     exit 1
   fi
+}
+
+start() {
+  check_pid $PID_FILE "service already started"
 
   printf "Starting '$NAME'...\n"
   start-stop-daemon --start \
@@ -41,10 +45,8 @@ start() {
 }
 
 stop() {
-  if [ ! -f "$PID_FILE" ]; then
-    echo "service not started"
-    exit 1
-  fi
+  local check="! $PID_FILE"
+  check_pid "$check" "service not started"
   
   printf "Stopping '$NAME'...\n"
   start-stop-daemon --stop \
