@@ -24,40 +24,41 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+
 #define BUF_LEN (10 * (sizeof(struct inotify_event) + NAME_MAX + 1))
 #define MAX_WATCHERS 524288 // max number of watchers linux allows
 
-//TODO: Add logging since we are now running as a daemon
-
-static int running = 0;
 static int watchers[MAX_WATCHERS]; // array of watcher id's
+static int running = 0;
 static char *prog_name = NULL;
 static char *root_dir = NULL;
 static char *wsgi_file = NULL;
 static char *pid_file_name = NULL;
 static int pid_fd = -1;
+static FILE *log_stream;
 
 static void displayInotifyEvent(struct inotify_event *ev)
 {
-    syslog(LOG_INFO, "wd =%2d; ", ev->wd);
+    fprintf(log_stream, "wd =%2d;\n", ev->wd);
     if (ev->cookie > 0)
-        syslog(LOG_INFO, "cookie =%4d; ", ev->cookie);
+        fprintf(log_stream, "cookie =%4d;\n", ev->cookie);
 
-    syslog(LOG_INFO, "mask = ");
-    if (ev->mask & IN_ATTRIB) syslog(LOG_INFO, "IN_ATTRIB ");
-    if (ev->mask & IN_MODIFY) syslog(LOG_INFO, "IN_MODIFY ");
-    syslog(LOG_INFO, "\n");
+    fprintf(log_stream, "mask = \n");
+    if (ev->mask & IN_ATTRIB) fprintf(log_stream, "IN_ATTRIB\n");
+    if (ev->mask & IN_MODIFY) fprintf(log_stream, "IN_MODIFY\n");
+    fprintf(log_stream, "\n");
 
     if (ev->len > 0)
-        syslog(LOG_INFO, "name = %s\n", ev->name);
+        fprintf(log_stream, "name = %s\n", ev->name);
     
+    fflush(log_stream);
 }
 
 int add_watcher(int fd, const char *dir)
 {
     int wd = inotify_add_watch(fd, dir, IN_MODIFY | IN_ATTRIB);
     if (wd == -1) {
-        syslog(LOG_INFO, "error watching %s with wd: %d\n", dir, wd);
+        syslog(LOG_ERR, "error watching %s with wd: %d\n", dir, wd);
         return EXIT_FAILURE;
     }
 
@@ -68,7 +69,7 @@ int remove_watcher(int fd, int wd)
 {
     int status = inotify_rm_watch(fd, wd);
     if (status == -1) {
-        syslog(LOG_INFO, "error removing watcher %d\n", wd);
+        syslog(LOG_ERR, "error removing watcher %d\n", wd);
         return EXIT_FAILURE;
     }
 
@@ -118,7 +119,8 @@ int create_watchers(int fd, const char *root_dir, char *wsgi_file)
             if (wd == -1)
                 return EXIT_FAILURE;
 
-            syslog(LOG_INFO, "watching %s using wd %d\n", path, wd);
+            fprintf(log_stream, "watching %s using wd %d\n", path, wd);
+            fflush(log_stream);
             
             watchers[iter++] = wd;
 
@@ -142,7 +144,9 @@ int touch_wsgi(int fd, char *wsgi_file)
     }
 
     fclose(fp);
-    syslog(LOG_INFO, "touched wsgi!\n");
+
+    fprintf(log_stream, "touched wsgi!\n");
+    fflush(log_stream);
 
     return EXIT_SUCCESS;
 }
@@ -159,8 +163,9 @@ int monitor(int inotify_fd, const char *root_dir, char *wsgi_file)
         return EXIT_FAILURE;
 
     watchers[0] = wd;
-    syslog(LOG_INFO, "watching %s using wd %d\n", root_dir, wd);
-    
+
+    fprintf(log_stream, "watching %s using wd %d\n", root_dir, wd);
+    fflush(log_stream);
 
     // look for all nested dirs and create watchers for them
     create_watchers(inotify_fd, root_dir, wsgi_file);
@@ -175,17 +180,19 @@ int monitor(int inotify_fd, const char *root_dir, char *wsgi_file)
         }
 
         if (num_read == -1) {
-            syslog(LOG_INFO, "error reading inotify fd\n");
+            syslog(LOG_ERR, "error reading inotify fd\n");
             return EXIT_FAILURE;
         }
-        syslog(LOG_INFO, "read %ld bytes from inotify\n", (long)num_read);
-        
+
+        fprintf(log_stream, "read %ld bytes from inotify\n", (long)num_read);
+        fflush(log_stream);
 
         char *tmp = inotify_buf;
         while (tmp < inotify_buf + num_read) {
             event = (struct inotify_event *)tmp;
             if ((strcmp(event->name, wsgi_file_name) == 0)) {
-                syslog(LOG_INFO, "skip wsgi file\n");
+                fprintf(log_stream, "skip wsgi file\n");
+                fflush(log_stream);
                 tmp += sizeof(struct inotify_event) + event->len;
                 continue;
             }
@@ -253,6 +260,9 @@ static void daemonize()
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
 
+    stdin = fopen(/dev/null, "r");
+    stdout = fopen(/dev/null, "w+");
+    stderr = fopen(/dev/null, "w+");
 
     if (pid_file_name != NULL)
     {
@@ -308,6 +318,7 @@ int main(int argc, char **argv)
     static struct option long_options[] = {
         {"watch_dir", required_argument, 0, 'w'},
         {"wsgi_file", required_argument, 0, 'f'},
+        {"log_file", required_argument, 0, 'l'},
         {"pid_file", required_argument, 0, 'p'},
         {"daemon", no_argument, 0, 'd'},
         {"help", no_argument, 0, 'h'},
@@ -316,6 +327,7 @@ int main(int argc, char **argv)
 
     int opt_val, opt_idx = 0;
     int start_as_daemon = 0;
+    char *log_file_name = NULL;
 
     prog_name = argv[0];
 
@@ -328,6 +340,9 @@ int main(int argc, char **argv)
             case 'f':
                 wsgi_file = strdup(optarg);
                 break;
+            case 'l':
+                log_file_name = strdup(optarg);
+                break;
             case 'p':
                 pid_file_name = strdup(optarg);
                 break;
@@ -336,10 +351,10 @@ int main(int argc, char **argv)
                 break;
             case 'h':
                 print_usage();
-                exit(EXIT_SUCCESS);
+                return EXIT_SUCCESS;
             default:
                 print_usage();
-                exit(EXIT_FAILURE);
+                return EXIT_FAILURE;
         }
     }
 
@@ -347,22 +362,36 @@ int main(int argc, char **argv)
         daemonize();
     }
 
-
     openlog(argv[0], LOG_PID|LOG_CONS, LOG_DAEMON);
     syslog(LOG_INFO, "started: %s", prog_name);
 
     // catch SIGINT and handle it
     signal(SIGINT, signal_handler);
 
+    // create file for logging output
+    if (log_file_name != NULL) {
+        log_stream = fopen(log_file_name, "a+");
+        if (log_stream == NULL) {
+            syslog(LOG_ERR, "cannot open log file: %s, error: %s",
+                    log_file_name, strerror(errno));
+            log_stream = stdout;
+        }
+    } else {
+        log_stream = stdout;
+    }
+
     int inotify_fd = inotify_init();
     if (inotify_fd == -1) {
         syslog(LOG_ERR, "error inotify init, root: %s\n", root_dir);
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     // the main loop of the program, runs until signal caught
     if (!monitor(inotify_fd, root_dir, wsgi_file))
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
+
+    if (log_stream != stdout)
+        fclose(log_stream);
 
     syslog(LOG_INFO, "stopped: %s", prog_name);
     closelog();
@@ -374,5 +403,5 @@ int main(int argc, char **argv)
     if (wsgi_file != NULL) free(root_dir);
     if (pid_file_name != NULL) free(root_dir);
 
-    exit(EXIT_SUCCESS);
+    return EXIT_SUCCESS;
 }
