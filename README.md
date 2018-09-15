@@ -3,7 +3,8 @@ FYI dockerfile is for testing... currently running on OSX aka inotify is not loc
 
 Currently the daemon script is only configured for sysvinit.. /etc/init.d
 
-after install:
+**after install:**
+
 *logs located at*
 `/var/log/daemon.log`
 
@@ -34,3 +35,4 @@ cp daemon.init /etc/init.d/daemon \
 
 # run the daemon
 service daemon start
+**
