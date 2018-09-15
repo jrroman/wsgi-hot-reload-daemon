@@ -1,4 +1,4 @@
-#WSGI hot reload
+# WSGI hot reload
 FYI dockerfile is for testing... currently running on OSX aka inotify is not local 
 
 Currently the daemon script is only configured for sysvinit.. /etc/init.d
@@ -14,7 +14,7 @@ Currently the daemon script is only configured for sysvinit.. /etc/init.d
 *init script located at*
 `/etc/init.d/daemon`
 
-###Installation
+### Installation
 
 ```sh
 # clone repository into env
