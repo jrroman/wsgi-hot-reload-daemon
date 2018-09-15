@@ -12,7 +12,7 @@ see below for install
 git clone git@github.com:jrroman/wsgi-hot-reload-daemon.git
 
 # ensure make and gcc are in the env
-*debian / ubuntu*
+# debian / ubuntu
 apt-get update && apt-get install -y make gcc
 
 # add the daemon init script
