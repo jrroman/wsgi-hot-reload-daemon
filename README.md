@@ -27,7 +27,7 @@ apt-get update && apt-get install -y make gcc
 # add the daemon init script
 cp daemon.init /etc/init.d/daemon \
 && chmod +x /etc/init.d/daemon \
-&& update-rc.d daemon defaults \
+&& update-rc.d daemon defaults
 
 # compile the daemon
 # this will place the exec in /usr/bin
