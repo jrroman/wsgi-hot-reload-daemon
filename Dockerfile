@@ -10,6 +10,6 @@ RUN apt-get update && apt-get install -y \
     && cp daemon.init /etc/init.d/daemon \
     && chmod +x /etc/init.d/daemon \
     && update-rc.d daemon defaults \
-    && ./build.sh && mv daemon /usr/bin
+    && ./build.sh
 
 CMD ["service daemon start"]

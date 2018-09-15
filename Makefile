@@ -1,7 +1,7 @@
 CCC=gcc
 FLAGS=-Ofast -Wall -o
-ROOT_DIR=/daemon
-SRC_DIR=$(ROOT_DIR)/src
+ROOT_DIR=./
+SRC_DIR=$(ROOT_DIR)src
 BIN_DIR=/usr/bin
 PROG_NAME=daemon
 RM=rm
@@ -15,3 +15,6 @@ install:
 
 clean:
 	$(RM) $(PROG_NAME)
+
+clean-install:
+	$(RM) $(BIN_DIR)/$(PROG_NAME)

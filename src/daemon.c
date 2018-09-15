@@ -8,6 +8,7 @@
  * restart the WSGIDaemon procs so the changes are seen in
  * realtime. 
  */
+
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -37,16 +38,18 @@ static char *pid_file_name = NULL;
 static int pid_fd = -1;
 static FILE *log_stream;
 
+// TODO replace syslog(LOG_ERR, "string val") with fprintf(stderr, "string val")
+// TODO add function to remove trailing slash from the watch directory
+
 static void displayInotifyEvent(struct inotify_event *ev)
 {
-    fprintf(log_stream, "wd =%2d;\n", ev->wd);
+    fprintf(log_stream, "\nwd =%2d;\n", ev->wd);
     if (ev->cookie > 0)
         fprintf(log_stream, "cookie =%4d;\n", ev->cookie);
 
     fprintf(log_stream, "mask = \n");
     if (ev->mask & IN_ATTRIB) fprintf(log_stream, "IN_ATTRIB\n");
     if (ev->mask & IN_MODIFY) fprintf(log_stream, "IN_MODIFY\n");
-    fprintf(log_stream, "\n");
 
     if (ev->len > 0)
         fprintf(log_stream, "name = %s\n", ev->name);
@@ -54,13 +57,16 @@ static void displayInotifyEvent(struct inotify_event *ev)
     fflush(log_stream);
 }
 
-int add_watcher(int fd, const char *dir)
+int add_watcher(int fd, char *dir)
 {
     int wd = inotify_add_watch(fd, dir, IN_MODIFY | IN_ATTRIB);
     if (wd == -1) {
         syslog(LOG_ERR, "error watching %s with wd: %d\n", dir, wd);
         return EXIT_FAILURE;
     }
+
+    fprintf(log_stream, "watching %s using wd %d\n", dir, wd);
+    fflush(log_stream);
 
     return wd;
 }
@@ -72,6 +78,9 @@ int remove_watcher(int fd, int wd)
         syslog(LOG_ERR, "error removing watcher %d\n", wd);
         return EXIT_FAILURE;
     }
+
+    fprintf(log_stream, "removing wd: %d\n", wd);
+    fflush(log_stream);
 
     return EXIT_SUCCESS;
 }
@@ -87,14 +96,14 @@ int cleanup_watchers(int fd)
     return EXIT_SUCCESS;
 }
 
-int create_watchers(int fd, const char *root_dir, char *wsgi_file)
+int create_watchers(int fd, char *dir)
 {
     DIR *dirp;
     struct dirent *dn;
     int wd, iter;
 
-    if ((dirp = opendir(root_dir)) == NULL) {
-        syslog(LOG_ERR, "could not open directory %s\n", root_dir);
+    if ((dirp = opendir(dir)) == NULL) {
+        syslog(LOG_ERR, "could not open directory %s\n", dir);
         return EXIT_FAILURE;
     }
 
@@ -108,7 +117,7 @@ int create_watchers(int fd, const char *root_dir, char *wsgi_file)
             char path[PATH_MAX]; // specified in limits.h
 
             path_len = snprintf(path, PATH_MAX, "%s/%s", 
-                    root_dir, dn->d_name);
+                    dir, dn->d_name);
 
             if (path_len >= PATH_MAX) {
                 syslog(LOG_ERR, "Path length is too long.\n");
@@ -119,12 +128,9 @@ int create_watchers(int fd, const char *root_dir, char *wsgi_file)
             if (wd == -1)
                 return EXIT_FAILURE;
 
-            fprintf(log_stream, "watching %s using wd %d\n", path, wd);
-            fflush(log_stream);
-            
             watchers[iter++] = wd;
 
-            create_watchers(fd, path, wsgi_file);
+            create_watchers(fd, path);
         }
     }
 
@@ -133,7 +139,7 @@ int create_watchers(int fd, const char *root_dir, char *wsgi_file)
     return EXIT_SUCCESS;
 }
 
-int touch_wsgi(int fd, char *wsgi_file)
+int touch_wsgi(int fd)
 {
     FILE *fp;
 
@@ -151,24 +157,21 @@ int touch_wsgi(int fd, char *wsgi_file)
     return EXIT_SUCCESS;
 }
 
-int monitor(int inotify_fd, const char *root_dir, char *wsgi_file)
+int monitor(int inotify_fd, char *dir)
 {
     char inotify_buf[BUF_LEN];
     ssize_t num_read;
     struct inotify_event *event;
     char *wsgi_file_name = basename(wsgi_file);
 
-    int wd = add_watcher(inotify_fd, root_dir);
+    int wd = add_watcher(inotify_fd, dir);
     if (wd == -1)
         return EXIT_FAILURE;
 
     watchers[0] = wd;
 
-    fprintf(log_stream, "watching %s using wd %d\n", root_dir, wd);
-    fflush(log_stream);
-
     // look for all nested dirs and create watchers for them
-    create_watchers(inotify_fd, root_dir, wsgi_file);
+    create_watchers(inotify_fd, dir);
 
     // signal handler affects this value
     running = 1;
@@ -197,7 +200,8 @@ int monitor(int inotify_fd, const char *root_dir, char *wsgi_file)
                 continue;
             }
             displayInotifyEvent(event);
-            if (touch_wsgi(inotify_fd, wsgi_file) == -1)
+
+            if (touch_wsgi(inotify_fd) == -1)
                 return EXIT_FAILURE;
 
             tmp += sizeof(struct inotify_event) + event->len;
@@ -260,9 +264,9 @@ static void daemonize()
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
 
-    stdin = fopen(/dev/null, "r");
-    stdout = fopen(/dev/null, "w+");
-    stderr = fopen(/dev/null, "w+");
+    stdin = fopen("/dev/null", "r");
+    stdout = fopen("/dev/null", "w+");
+    stderr = fopen("/dev/null", "w+");
 
     if (pid_file_name != NULL)
     {
@@ -387,21 +391,25 @@ int main(int argc, char **argv)
     }
 
     // the main loop of the program, runs until signal caught
-    if (!monitor(inotify_fd, root_dir, wsgi_file))
+    if (!monitor(inotify_fd, root_dir))
         return EXIT_FAILURE;
+
+    int ret;
+    ret = cleanup_watchers(inotify_fd);
+    if (ret < 0)
+        syslog(LOG_ERR, "Error cleaning up watchers!\n");
+
+    close(inotify_fd);
 
     if (log_stream != stdout)
         fclose(log_stream);
 
-    syslog(LOG_INFO, "stopped: %s", prog_name);
+    syslog(LOG_INFO, "shutting down: %s", prog_name);
     closelog();
 
-    cleanup_watchers(inotify_fd);
-    close(inotify_fd);
-
     if (root_dir != NULL) free(root_dir);
-    if (wsgi_file != NULL) free(root_dir);
-    if (pid_file_name != NULL) free(root_dir);
+    if (wsgi_file != NULL) free(wsgi_file);
+    if (pid_file_name != NULL) free(pid_file_name);
 
     return EXIT_SUCCESS;
 }
