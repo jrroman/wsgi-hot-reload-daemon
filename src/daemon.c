@@ -43,7 +43,7 @@ static FILE *log_stream;
 
 static void displayInotifyEvent(struct inotify_event *ev)
 {
-    fprintf(log_stream, "\nwd =%2d;\n", ev->wd);
+    fprintf(log_stream, "wd =%2d;\n", ev->wd);
     if (ev->cookie > 0)
         fprintf(log_stream, "cookie =%4d;\n", ev->cookie);
 
@@ -187,7 +187,7 @@ int monitor(int inotify_fd, char *dir)
             return EXIT_FAILURE;
         }
 
-        fprintf(log_stream, "read %ld bytes from inotify\n", (long)num_read);
+        fprintf(log_stream, "\nread %ld bytes from inotify\n", (long)num_read);
         fflush(log_stream);
 
         char *tmp = inotify_buf;
@@ -313,11 +313,9 @@ void print_usage(void)
     printf("\n");
 }
 
-
 // Main Logic
 int main(int argc, char **argv)
 {
-    // TODO implement actual option handling using getopt
     // for long options and such
     static struct option long_options[] = {
         {"watch_dir", required_argument, 0, 'w'},
@@ -394,8 +392,7 @@ int main(int argc, char **argv)
     if (!monitor(inotify_fd, root_dir))
         return EXIT_FAILURE;
 
-    int ret;
-    ret = cleanup_watchers(inotify_fd);
+    int ret = cleanup_watchers(inotify_fd);
     if (ret < 0)
         syslog(LOG_ERR, "Error cleaning up watchers!\n");
 
