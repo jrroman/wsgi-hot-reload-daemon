@@ -62,7 +62,7 @@ int add_watcher(int fd, char *dir)
     int wd = inotify_add_watch(fd, dir, IN_MODIFY | IN_ATTRIB);
     if (wd == -1) {
         syslog(LOG_ERR, "error watching %s with wd: %d\n", dir, wd);
-        return EXIT_FAILURE;
+        return wd;
     }
 
     fprintf(log_stream, "watching %s using wd %d\n", dir, wd);
@@ -76,13 +76,13 @@ int remove_watcher(int fd, int wd)
     int status = inotify_rm_watch(fd, wd);
     if (status == -1) {
         syslog(LOG_ERR, "error removing watcher %d\n", wd);
-        return EXIT_FAILURE;
+        return status;
     }
 
     fprintf(log_stream, "removing wd: %d\n", wd);
     fflush(log_stream);
 
-    return EXIT_SUCCESS;
+    return status;
 }
 
 int cleanup_watchers(int fd)
@@ -353,10 +353,10 @@ int main(int argc, char **argv)
                 break;
             case 'h':
                 print_usage();
-                return EXIT_SUCCESS;
+                exit(EXIT_SUCCESS);
             default:
                 print_usage();
-                return EXIT_FAILURE;
+                exit(EXIT_FAILURE);
         }
     }
 
@@ -385,12 +385,12 @@ int main(int argc, char **argv)
     int inotify_fd = inotify_init();
     if (inotify_fd == -1) {
         syslog(LOG_ERR, "error inotify init, root: %s\n", root_dir);
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE);
     }
 
     // the main loop of the program, runs until signal caught
     if (!monitor(inotify_fd, root_dir))
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE);
 
     int ret = cleanup_watchers(inotify_fd);
     if (ret < 0)
@@ -408,5 +408,5 @@ int main(int argc, char **argv)
     if (wsgi_file != NULL) free(wsgi_file);
     if (pid_file_name != NULL) free(pid_file_name);
 
-    return EXIT_SUCCESS;
+    exit(EXIT_SUCCESS);
 }
