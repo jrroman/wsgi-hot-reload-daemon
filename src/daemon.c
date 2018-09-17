@@ -23,7 +23,9 @@
 #include <sys/inotify.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
+#include <utime.h>
 
 
 #define BUF_LEN (10 * (sizeof(struct inotify_event) + NAME_MAX + 1))
@@ -139,22 +141,26 @@ int create_watchers(int fd, char *dir)
     return EXIT_SUCCESS;
 }
 
-int touch_wsgi(int fd)
+int touch_wsgi()
 {
-    FILE *fp;
+    struct stat file_stat;
+    struct utimbuf new_time;
+    //time_t mtime;
 
-    fp = fopen(wsgi_file, "w");
-    if (fp == NULL) {
-        syslog(LOG_ERR, "invalid file descriptor\n");
-        return EXIT_FAILURE;
-    }
+    if (stat(wsgi_file, &file_stat) < 0)
+        return -1;
 
-    fclose(fp);
+    //mtime = file_stat.st_mtime;
+    new_time.actime = file_stat.st_atime;
+    new_time.modtime = time(NULL);
+
+    if (utime(wsgi_file, &new_time) < 0)
+        return -1;
 
     fprintf(log_stream, "touched wsgi!\n");
     fflush(log_stream);
 
-    return EXIT_SUCCESS;
+    return 0;
 }
 
 int monitor(int inotify_fd, char *dir)
@@ -201,7 +207,7 @@ int monitor(int inotify_fd, char *dir)
             }
             displayInotifyEvent(event);
 
-            if (touch_wsgi(inotify_fd) == -1)
+            if (touch_wsgi() == -1)
                 return EXIT_FAILURE;
 
             tmp += sizeof(struct inotify_event) + event->len;
